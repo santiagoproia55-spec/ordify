@@ -122,20 +122,6 @@
         }
 
         // --- COMPONENTES AUXILIARES ---
-        function KPICard({ title, value, icon, color }) {
-            return (
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-                    <div className={`p-4 rounded-full ${color}`}>
-                        {icon}
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
-                    </div>
-                </div>
-            );
-        }
-
         function getStatusStyles(status) {
             switch(status) {
                 case 'pendiente': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900/50';
@@ -208,12 +194,14 @@
                                     {isExpanded ? <IconChevronDown className="w-4 h-4"/> : <IconChevronRight className="w-4 h-4"/>}
                                 </button>
                                 <div>
-                                    <div className="font-bold text-gray-900 dark:text-white">{order.buyer_name}</div>
+                                    <div className="font-bold text-gray-900 dark:text-white">{order.seller_name}</div>
                                     <div className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</div>
                                 </div>
                             </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{order.seller_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                            {order.buyer_name ? order.buyer_name : <span className="italic opacity-50">Sin especificar</span>}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-bold text-gray-900 dark:text-white">{order.quantity}</span>
                         </td>
@@ -399,13 +387,28 @@
                 
                 const porcentajePagado = totalDinero > 0 ? (dineroPagado / totalDinero) * 100 : 0;
 
-                return { thisWeekOrders, totalDinero, totalUnidades, pagados, adeudados, dineroPagado, dineroAdeudado, porcentajePagado };
+                // Lógica del Mejor Vendedor (Bizcochuelo)
+                const counts = {};
+                thisWeekOrders.forEach(o => {
+                    counts[o.seller_name] = (counts[o.seller_name] || 0) + Number(o.quantity);
+                });
+                let topSellerName = null;
+                let topSellerCount = 0;
+                for (const [seller, count] of Object.entries(counts)) {
+                    if (count > topSellerCount) {
+                        topSellerCount = count;
+                        topSellerName = seller;
+                    }
+                }
+                const topSeller = topSellerName ? { name: topSellerName, count: topSellerCount } : null;
+
+                return { thisWeekOrders, totalDinero, totalUnidades, pagados, adeudados, dineroPagado, dineroAdeudado, porcentajePagado, topSeller };
             }, [orders, thisFriday, lastFriday]);
 
             // Filtrado de Pedidos
             const filteredOrders = useMemo(() => {
                 return orders.filter(order => {
-                    const matchesSearch = order.buyer_name.toLowerCase().includes(searchQuery.toLowerCase()) || order.seller_name.toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchesSearch = (order.buyer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || order.seller_name.toLowerCase().includes(searchQuery.toLowerCase());
                     const matchesStatus = filterStatus === 'todos' || order.status === filterStatus;
                     const matchesSeller = filterSeller === 'todos' || order.seller_name === filterSeller;
                     const matchesPayment = filterPayment === 'todos' || order.payment_method === filterPayment;
@@ -510,7 +513,7 @@
                 for(let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
 
                 return (
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 h-full">
                         <div className="flex items-center gap-2 mb-4">
                             <IconCalendar className="text-primary dark:text-indigo-400 w-5 h-5"/>
                             <h3 className="font-bold text-gray-900 dark:text-white">
@@ -572,7 +575,7 @@
                                     <div className="bg-primary p-3 rounded-xl inline-block mb-4 shadow-lg shadow-primary/30">
                                         <IconPackage className="text-white w-8 h-8" />
                                     </div>
-                                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Ordify</h2>
+                                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">CS - Ventas</h2>
                                     <p className="text-gray-500 dark:text-gray-400 mt-2">Acceso a Organizadores</p>
                                 </div>
                                 
@@ -612,13 +615,16 @@
                 );
             }
 
+            // PORCENTAJE META 100 PEDIDOS
+            const progressPercentage = Math.min((dashboardData.totalUnidades / 100) * 100, 100);
+
             return (
                 <div className={isDarkMode ? 'dark' : ''}>
                     <div className="flex flex-col md:flex-row h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100">
                         
                         {/* SIDEBAR ESTRECHA */}
                         <aside className="w-20 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col items-center py-6 hidden md:flex z-20">
-                            <div className="bg-primary p-3 rounded-xl shadow-sm shadow-primary/30 mb-8" title="Ordify">
+                            <div className="bg-primary p-3 rounded-xl shadow-sm shadow-primary/30 mb-8" title="CS Ventas">
                                 <IconPackage className="text-white w-6 h-6" />
                             </div>
                             
@@ -672,38 +678,66 @@
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {/* META PROGRESS BAR */}
+                                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                            <div className="flex justify-between items-end mb-3">
+                                                <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <span className="text-xl">🎯</span> Meta Semanal
+                                                </h3>
+                                                <span className="text-sm font-bold text-primary dark:text-indigo-400">{dashboardData.totalUnidades} / 100 pedidos</span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden shadow-inner">
+                                                <div className="bg-yellow-400 h-full rounded-full transition-all duration-1000 ease-out relative flex items-center justify-end pr-2" style={{ width: `${Math.max(progressPercentage, 2)}%` }}>
+                                                    <div className="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                             <CalendarWidget />
                                             
-                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center items-center">
+                                            {/* EL GANADOR DEL BIZCOCHUELO */}
+                                            <div className="bg-gradient-to-br from-yellow-100 to-yellow-50 dark:from-yellow-900/40 dark:to-yellow-800/20 p-6 rounded-xl shadow-sm border border-yellow-200 dark:border-yellow-700/50 flex flex-col justify-center items-center text-center h-full">
+                                                <h3 className="text-[11px] font-black text-yellow-800 dark:text-yellow-500 uppercase tracking-widest mb-3">El próximo ganador del Bizcochuelo 🍰</h3>
+                                                {dashboardData.topSeller ? (
+                                                    <React.Fragment>
+                                                        <p className="text-3xl font-extrabold text-gray-900 dark:text-white leading-none">{dashboardData.topSeller.name}</p>
+                                                        <p className="text-sm font-bold text-yellow-700 dark:text-yellow-400 mt-2 bg-yellow-200/50 dark:bg-yellow-900/50 px-3 py-1 rounded-full">{dashboardData.topSeller.count} pedidos</p>
+                                                    </React.Fragment>
+                                                ) : (
+                                                    <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">Aún no hay ventas esta semana</p>
+                                                )}
+                                            </div>
+
+                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center items-center h-full">
                                                 <h3 className="font-bold text-gray-900 dark:text-white w-full text-left mb-4">Estado de Pagos</h3>
-                                                <div className="relative w-40 h-40 pie-chart" 
+                                                <div className="relative w-36 h-36 pie-chart" 
                                                      style={{ background: `conic-gradient(#10b981 ${dashboardData.porcentajePagado}%, #ef4444 ${dashboardData.porcentajePagado}% 100%)` }}>
-                                                    <div className="absolute inset-0 m-auto w-24 h-24 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center flex-col shadow-inner">
-                                                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{Math.round(dashboardData.porcentajePagado)}%</span>
-                                                        <span className="text-xs text-gray-500">Pagado</span>
+                                                    <div className="absolute inset-0 m-auto w-20 h-20 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center flex-col shadow-inner">
+                                                        <span className="text-xl font-bold text-gray-900 dark:text-white">{Math.round(dashboardData.porcentajePagado)}%</span>
+                                                        <span className="text-[10px] text-gray-500">Pagado</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex w-full justify-between mt-6 text-sm">
-                                                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full"></div> Pagado: ${dashboardData.dineroPagado}</div>
-                                                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div> Deuda: ${dashboardData.dineroAdeudado}</div>
+                                                <div className="flex w-full justify-between mt-4 text-xs font-medium">
+                                                    <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div> ${dashboardData.dineroPagado}</div>
+                                                    <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div> ${dashboardData.dineroAdeudado}</div>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+                                            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col h-full max-h-64">
                                                 <div className="flex items-center gap-2 mb-4">
                                                     <IconAlertCircle className="text-red-500 w-5 h-5"/>
-                                                    <h3 className="font-bold text-gray-900 dark:text-white">Lista de Adeudados</h3>
+                                                    <h3 className="font-bold text-gray-900 dark:text-white">Adeudados</h3>
                                                 </div>
                                                 <div className="flex-1 overflow-auto bg-red-50/50 dark:bg-red-900/10 rounded-lg p-3">
                                                     {dashboardData.adeudados.length === 0 ? (
-                                                        <div className="h-full flex items-center justify-center text-sm text-green-600 font-medium">¡Nadie debe dinero esta semana! 🎉</div>
+                                                        <div className="h-full flex items-center justify-center text-sm text-green-600 font-medium text-center">¡Nadie debe dinero esta semana! 🎉</div>
                                                     ) : (
                                                         <ul className="space-y-3">
                                                             {dashboardData.adeudados.map(o => (
                                                                 <li key={o.id} className="flex justify-between items-center text-sm border-b border-red-100 dark:border-red-900/30 pb-2">
                                                                     <div>
-                                                                        <span className="font-bold text-gray-900 dark:text-white">{o.buyer_name}</span>
+                                                                        <span className="font-bold text-gray-900 dark:text-white">{o.buyer_name || 'Sin especificar'}</span>
                                                                         <span className="block text-xs text-gray-500">Vend. {o.seller_name}</span>
                                                                     </div>
                                                                     <div className="font-bold text-red-600 dark:text-red-400">
@@ -749,13 +783,13 @@
                                         </div>
 
                                         {/* TABLA */}
-                                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden pb-10">
                                             <div className="overflow-x-auto">
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
                                                         <tr className="bg-primary text-white text-xs uppercase tracking-wider">
-                                                            <th className="px-6 py-4 font-medium">Comprador</th>
                                                             <th className="px-6 py-4 font-medium">Vendedor</th>
+                                                            <th className="px-6 py-4 font-medium">Comprador</th>
                                                             <th className="px-6 py-4 font-medium text-center">Cant.</th>
                                                             <th className="px-6 py-4 font-medium">Estado</th>
                                                             <th className="px-6 py-4 font-medium">Pago</th>
@@ -826,7 +860,7 @@
 
             const validate = () => {
                 const newErrors = {};
-                if (!formData.buyer_name) newErrors.buyer_name = 'Requerido';
+                // ELIMINADO: if (!formData.buyer_name) newErrors.buyer_name = 'Requerido'; (Ahora es opcional)
                 if (!formData.seller_name) newErrors.seller_name = 'Requerido';
                 if (formData.quantity <= 0) newErrors.quantity = 'Mayor a 0';
                 if (formData.status === 'transferido' && !formData.transferred_to) newErrors.transferred_to = 'Requerido';
@@ -845,12 +879,12 @@
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comprador *</label>
-                                    <input type="text" className={`w-full p-2.5 bg-white dark:bg-gray-900 dark:text-white border rounded-lg focus:ring-2 focus:ring-primary outline-none ${errors.buyer_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} value={formData.buyer_name} onChange={e => setFormData({...formData, buyer_name: e.target.value})} />
-                                </div>
-                                <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendedor *</label>
                                     <input type="text" className={`w-full p-2.5 bg-white dark:bg-gray-900 dark:text-white border rounded-lg focus:ring-2 focus:ring-primary outline-none ${errors.seller_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} value={formData.seller_name} onChange={e => setFormData({...formData, seller_name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comprador (Opcional)</label>
+                                    <input type="text" className={`w-full p-2.5 bg-white dark:bg-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary outline-none`} value={formData.buyer_name} onChange={e => setFormData({...formData, buyer_name: e.target.value})} />
                                 </div>
                             </div>
                             
